@@ -1,0 +1,6 @@
+# This playbook deploys the whole application stack in this site.
+- hosts: test
+
+  roles:
+  - ansible-jupyterhub
+

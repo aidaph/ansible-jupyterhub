@@ -1,0 +1,21 @@
+- name: Install dockerspawner
+  pip:
+    name: dockerspawner
+    executable: pip3
+  become: yes
+
+- name: Add dockerspawner config
+  blockinfile:
+    path: "{{ jupyter_config_dir }}/jupyterhub_config.py"
+    block: |
+      c.DockerSpawner.image = '{{ docker_image }}'
+      
+      notebook_dir = os.environ.get('DOCKER_NOTEBOOK_DIR') or '/home/jovyan'
+      c.DockerSpawner.notebook_dir = notebook_dir
+
+      # Make data persistent
+      c.DockerSpawner.volumes = { 'jupyterhub-user-{username}': notebook_dir,
+                                  '/share': '/home/jovyan/share' }
+
+    marker: "# {mark} spawn with Docker"
+  become: yes

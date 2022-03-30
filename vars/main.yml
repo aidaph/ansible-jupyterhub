@@ -1,0 +1,21 @@
+---
+# vars file for master-jupyterhub
+jupyter_pkgs:
+  - git
+  - nodejs
+  - npm
+  - python3
+  - python3-dev
+  - python3-pip
+  - python3-setuptools
+  - apt-transport-https
+domain_name: localhost:8000 
+client_id: XXXXXX 
+client_secret: XXXXXX
+jupyter_config_dir: /etc/jupyterhub
+docker_image: jupyterhub/singleuser:0.8
+jupyter_passw: XXXXXXXX
+docker_repo_url: https://download.docker.com/linux/ubuntu
+ubuntu_version: focal
+docker_gpg_key: "{{ docker_repo_url }}/gpg"
+docker_repo: "deb [arch=amd64] {{ docker_repo_url }} {{ ubuntu_version}} stable"

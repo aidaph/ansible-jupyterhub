@@ -1,0 +1,117 @@
+---
+# tasks file for master-jupyterhub
+- name: Install dependencies
+  apt: name={{item}} state=present update_cache=yes
+  with_items: "{{jupyter_pkgs}}"
+  become: yes
+
+- name: Install Jupyterhub using pip3
+  pip:
+    name: jupyterhub
+    executable: pip3
+  become: yes
+
+- name: install npm package configurable-http-proxy
+  npm: name=configurable-http-proxy global=yes state=present
+  become: yes
+
+- name: add jupyterhub group
+  group: name=jupyterhub state=present
+  become: yes
+
+- name: add jupyter user
+  user: name=jupyter state=present groups=jupyterhub password="{{ jupyter_passw }}"
+  become: yes
+
+- name: create jupyterhub folder in etc
+  file: path={{ jupyter_config_dir }} state=directory mode=0755 owner=jupyter group=jupyterhub
+  become: yes
+
+- name: check if config file exists
+  stat: path={{ jupyter_config_dir }}/jupyterhub_config.py
+  register: config_exists
+  become: yes
+
+- name: configure jupyterhub
+  command: /usr/local/bin/jupyterhub --generate-config chdir={{ jupyter_config_dir }} creates={{ jupyter_config_dir }}/jupyterhub_config.py
+  when: config_exists.stat.exists == False
+  become: yes
+
+- name: Include libraries in the config
+  blockinfile:
+      path: "{{ jupyter_config_dir }}/jupyterhub_config.py"
+      block: |      
+        c = get_config()
+        import os
+        import sys
+        sys.path.append('/home/ubuntu/.local/lib/python3.5/site-packages/')
+        sys.path.append('/etc/jupyterhub')
+  become: yes
+
+- name: set jupyterhub LOG LEVEL
+  lineinfile: dest={{ jupyter_config_dir }}/jupyterhub_config.py line="c.JupyterHub.log_level = 10"
+  become: yes
+
+- name: set DB url
+  lineinfile: dest={{ jupyter_config_dir }}/jupyterhub_config.py line="c.JupyterHub.db_url = 'sqlite:///{{ jupyter_config_dir }}/jupyterhub.sqlite'"
+  become: yes
+
+- name: Set LOG File
+  lineinfile: dest={{ jupyter_config_dir }}/jupyterhub_config.py line="c.JupyterHub.extra_log_file = '/var/log/jupyterhub.log'"
+  become: yes
+
+- name: Set DEBUG Proxy
+  lineinfile: dest={{ jupyter_config_dir }}/jupyterhub_config.py line="c.JupyterHub.debug_proxy=True"
+  become: yes
+
+- name: Install jupyter-client using pip3
+  pip:
+    name: jupyter-client
+    executable: pip3
+  become: yes
+
+- name: include some libraries and config
+  blockinfile:
+      path: "{{ jupyter_config_dir }}/jupyterhub_config.py"
+      block: |
+        c = get_config()
+        import os
+        import sys
+        sys.path.append('/home/ubuntu/.local/lib/python3.5/site-packages/')
+        sys.path.append('/etc/jupyterhub')
+
+        from jupyter_client.localinterfaces import public_ips
+        c.JupyterHub.hub_ip = public_ips()[0]
+  become: yes
+
+- name: Ensure that docker engine is installed
+  include_role: 
+    name: master-jupyterhub
+    tasks_from: install-docker
+
+- name: Set spawner class
+  lineinfile: dest={{ jupyter_config_dir }}/jupyterhub_config.py line="c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'"
+  become: yes
+
+- name: Include dockerspawner
+  include: dockerspawner.yml
+
+- name: Include oauthenticator  
+  include: oauthenticator.yml
+
+- name: Check to see if config file exists
+  stat: path=/etc/init.d/jupyterhub
+  register: init_exists
+  become: yes
+
+- name: Add Jupyterhub init service
+  template: src=jupyterhub.j2 dest=/etc/systemd/system/jupyterhub.service mode=755 owner=root group=root
+  become: yes
+
+- name: Start jupyterhub service
+  systemd:
+    state: restarted
+    name: jupyterhub
+    enabled: yes
+    daemon_reload: yes
+  become: yes

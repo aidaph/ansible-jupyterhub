@@ -1,0 +1,47 @@
+- name: Install oauthenticator
+  pip:
+    name: oauthenticator
+    executable: pip3
+  become: yes
+
+- name: ensure file exists
+  copy:
+    content: ""
+    dest: "{{ jupyter_config_dir }}/userlist"
+    force: no
+    group: jupyterhub
+    owner: jupyter
+    mode: 0664
+  become: yes
+
+- name: Add GitHubOAuthenticator
+  blockinfile:
+      path: "{{ jupyter_config_dir }}/jupyterhub_config.py"
+      block: |
+        from oauthenticator.github import GitHubOAuthenticator
+        c.JupyterHub.authenticator_class = GitHubOAuthenticator
+
+        c.GitHubOAuthenticator.create_system_users = True
+
+        c.GitHubOAuthenticator.oauth_callback_url = 'http://{{ domain_name }}/hub/oauth_callback'
+
+        c.GitHubOAuthenticator.client_id = '{{ client_id }}'
+        c.GitHubOAuthenticator.client_secret = '{{ client_secret }}'
+
+        c.GitHubOAuthenticator.whitelist = whitelist = set()
+        c.GitHubOAuthenticator.admin_users = admin = set()
+
+        join = os.path.join
+        here = os.path.dirname(__file__)
+        with open(join(here, 'userlist')) as f:
+          for line in f:
+            if not line:
+                continue
+            parts = line.split()
+            name = parts[0]
+            whitelist.add(name)
+            if len(parts) > 1 and parts[1] == 'admin':
+                admin.add(name)
+
+      marker: " # {mark} Config for GitHubOAuthenticator"
+  become: yes
